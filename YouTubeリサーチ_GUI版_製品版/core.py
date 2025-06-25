@@ -80,10 +80,10 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
         print(f"シート作成スキップ（既に存在の可能性）: {e}")
 
     values = [df.columns.tolist()] + df.values.tolist()
-    service.spreadsheets().values().update(
+     service.spreadsheets().values().update(
         spreadsheetId=spreadsheet_id,
         range=f"{sheet_name}!A1",
-        valueInputOption="RAW",
+        valueInputOption="USER_ENTERED",
         body={"values": values}
     ).execute()
 
