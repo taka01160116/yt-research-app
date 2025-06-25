@@ -42,16 +42,23 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
             channel_title = video["snippet"]["channelTitle"]
             published_at = video["snippet"]["publishedAt"]
 
-            videos.append({
-                "タイトル": title,
-                "チャンネル名": channel_title,
-                "投稿日": published_at,
-                "再生回数": view_count,
-                "動画URL": f"https://www.youtube.com/watch?v={video_id}",
-                "サムネイル": f'=IMAGE("{thumbnail_url}", 4, 60, 215)'  # 1/2サイズ
-            })
+            videos.append([
+                title,
+                channel_title,
+                published_at,
+                view_count,
+                f"https://www.youtube.com/watch?v={video_id}",
+                f'=IMAGE("{thumbnail_url}", 4, 60, 215)'  # 1/2サイズで表示
+            ])
 
-    df = pd.DataFrame(videos)
+    df = pd.DataFrame(videos, columns=[
+        "タイトル",
+        "チャンネル名",
+        "投稿日",
+        "再生回数",
+        "動画URL",
+        "サムネイル"
+    ])
 
     credentials = service_account.Credentials.from_service_account_info(
         service_account_info,
@@ -87,7 +94,7 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
                 "range": {
                     "sheetId": sheet_id,
                     "dimension": "COLUMNS",
-                    "startIndex": 5,
+                    "startIndex": 5,  # サムネイル列は6列目（index=5）
                     "endIndex": 6,
                 },
                 "properties": {"pixelSize": 215},
@@ -112,6 +119,5 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
         body={"requests": requests_body}
     ).execute()
 
-    # ✅ 最後に結果を返す（Streamlit側と連携）
     return len(df), f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit"
 
