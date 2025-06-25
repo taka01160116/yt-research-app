@@ -37,7 +37,9 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
             if view_count < min_views:
                 continue
 
-            thumbnail_url = video["snippet"]["thumbnails"]["high"]["url"]
+            # ✅ サムネイルURLは確実に表示される形式に強制変換
+            thumbnail_url = f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
+
             title = video["snippet"]["title"]
             channel_title = video["snippet"]["channelTitle"]
             published_at = video["snippet"]["publishedAt"]
@@ -48,7 +50,7 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
                 published_at,
                 view_count,
                 f"https://www.youtube.com/watch?v={video_id}",
-                f'=IMAGE("{thumbnail_url}", 4, 60, 215)'  # 1/2サイズで表示
+                f'=IMAGE("{thumbnail_url}", 4, 60, 215)'  # サイズ指定付きで確実表示
             ])
 
     df = pd.DataFrame(videos, columns=[
