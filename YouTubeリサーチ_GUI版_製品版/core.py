@@ -4,7 +4,6 @@ import pandas as pd
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 import isodate
-from collections import defaultdict
 
 def parse_duration(duration):
     try:
@@ -16,7 +15,7 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
     youtube = build("youtube", "v3", developerKey=api_key)
     published_after = (datetime.datetime.utcnow() - datetime.timedelta(days=days)).isoformat("T") + "Z"
     videos = []
-    channel_cache = {}  # channel_id → subscriber_count
+    channel_cache = {}  # チャンネル登録者数キャッシュ
 
     for keyword in keywords:
         next_page_token = None
@@ -44,7 +43,6 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
             if not video_ids:
                 break
 
-            # まとめて videos.list（最大50件）
             video_response = youtube.videos().list(
                 part="snippet,statistics,contentDetails",
                 id=",".join(video_ids)
@@ -69,17 +67,17 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
                 thumbnail_url = f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
                 channel_id = video["snippet"]["channelId"]
 
-                # チャンネル登録者数の取得（キャッシュあり）
+                # 登録者数取得（キャッシュあり）
                 if channel_id not in channel_cache:
                     try:
-                        channel_response = youtube.channels().list(
+                        ch_response = youtube.channels().list(
                             part="statistics",
                             id=channel_id
                         ).execute()
-                        subscriber_count = channel_response["items"][0]["statistics"].get("subscriberCount", "非公開")
-                        if subscriber_count != "非公開":
-                            subscriber_count = f"{int(subscriber_count):,}"
-                        channel_cache[channel_id] = subscriber_count
+                        sub_count = ch_response["items"][0]["statistics"].get("subscriberCount", "非公開")
+                        if sub_count != "非公開":
+                            sub_count = f"{int(sub_count):,}"
+                        channel_cache[channel_id] = sub_count
                     except:
                         channel_cache[channel_id] = "取得失敗"
 
@@ -92,7 +90,7 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
                     view_count,
                     published_at,
                     f"https://www.youtube.com/watch?v={video_id}",
-                    f'=IMAGE("https://i.ytimg.com/vi/{video_id}/hqdefault.jpg", 4, 135, 240)'
+                    f'=IMAGE("{thumbnail_url}", 4, 135, 240)'
                 ])
 
             next_page_token = search_response.get("nextPageToken")
@@ -109,7 +107,10 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
         "サムネイル"
     ])
 
-    # Google Sheets 書き出し
+    # ✅ 再生回数が多い順に並び替え
+    df.sort_values("再生回数", ascending=False, inplace=True)
+
+    # ✅ Sheets 認証・準備
     credentials = service_account.Credentials.from_service_account_info(
         service_account_info,
         scopes=["https://www.googleapis.com/auth/spreadsheets"]
@@ -117,8 +118,7 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
     service = build("sheets", "v4", credentials=credentials)
 
     spreadsheet_id = sheet_url.split("/d/")[1].split("/")[0]
-    now = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    sheet_name = f"動画リサーチ結果_{now}"
+    sheet_name = "動画リサーチ結果_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
     try:
         service.spreadsheets().batchUpdate(
@@ -136,39 +136,40 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
         body={"values": values}
     ).execute()
 
-    # サムネイル列サイズ調整（画像潰れ防止）
+    # ✅ サムネイル画像サイズに合わせてセルサイズ調整
     sheet_metadata = service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
     sheet_id = next(s["properties"]["sheetId"] for s in sheet_metadata["sheets"] if s["properties"]["title"] == sheet_name)
 
-    requests_body = [
-        {
-            "updateDimensionProperties": {
-                "range": {
-                    "sheetId": sheet_id,
-                    "dimension": "COLUMNS",
-                    "startIndex": 6,
-                    "endIndex": 7,
-                },
-                "properties": {"pixelSize": 240},
-                "fields": "pixelSize",
-            }
-        },
-        {
-            "updateDimensionProperties": {
-                "range": {
-                    "sheetId": sheet_id,
-                    "dimension": "ROWS",
-                    "startIndex": 1,
-                    "endIndex": len(df) + 1,
-                },
-                "properties": {"pixelSize": 135},
-                "fields": "pixelSize",
-            }
-        }
-    ]
     service.spreadsheets().batchUpdate(
         spreadsheetId=spreadsheet_id,
-        body={"requests": requests_body}
+        body={
+            "requests": [
+                {
+                    "updateDimensionProperties": {
+                        "range": {
+                            "sheetId": sheet_id,
+                            "dimension": "COLUMNS",
+                            "startIndex": 6,
+                            "endIndex": 7,
+                        },
+                        "properties": {"pixelSize": 240},
+                        "fields": "pixelSize",
+                    }
+                },
+                {
+                    "updateDimensionProperties": {
+                        "range": {
+                            "sheetId": sheet_id,
+                            "dimension": "ROWS",
+                            "startIndex": 1,
+                            "endIndex": len(df) + 1,
+                        },
+                        "properties": {"pixelSize": 135},
+                        "fields": "pixelSize",
+                    }
+                }
+            ]
+        }
     ).execute()
 
     return len(df), f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit"
