@@ -15,6 +15,7 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
     youtube = build("youtube", "v3", developerKey=api_key)
     published_after = (datetime.datetime.utcnow() - datetime.timedelta(days=days)).isoformat("T") + "Z"
     videos = []
+    seen_ids = set()  # ✅ 重複排除のためのセット
     channel_cache = {}
 
     for keyword in keywords:
@@ -50,6 +51,11 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
 
             for video in video_response["items"]:
                 video_id = video["id"]
+
+                if video_id in seen_ids:
+                    continue  # ✅ 既に追加済みならスキップ
+                seen_ids.add(video_id)
+
                 snippet = video_snippet_map.get(video_id)
                 if not snippet:
                     continue
@@ -85,7 +91,6 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
 
                 subscriber_count_str, subscriber_count_int = channel_cache[channel_id]
 
-                # ✅ 登録者数 × 3 未満の動画は除外
                 if subscriber_count_int > 0 and view_count < subscriber_count_int * 3:
                     continue
 
@@ -103,7 +108,6 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
             if not next_page_token:
                 break
 
-    # ✅ 0件なら中断
     if not videos:
         return 0, "検索結果が0件のため、スプレッドシートは作成されませんでした。"
 
@@ -118,7 +122,6 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
     ])
     df.sort_values("再生回数", ascending=False, inplace=True)
 
-    # ✅ スプレッドシート書き出し
     credentials = service_account.Credentials.from_service_account_info(
         service_account_info,
         scopes=["https://www.googleapis.com/auth/spreadsheets"]
