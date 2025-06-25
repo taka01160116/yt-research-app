@@ -1,17 +1,5 @@
-from googleapiclient.discovery import build
-import datetime
-import pandas as pd
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-import isodate
-import re
-import requests
-from PIL import Image
-from io import BytesIO
-import base64
 
 def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_account_info):
-    youtube = build("youtube", "v3", developerKey=api_key)
     published_after = (datetime.datetime.utcnow() - datetime.timedelta(days=days)).isoformat("T") + "Z"
     videos = []
 
@@ -62,14 +50,11 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
     df = pd.DataFrame(videos)
 
     # Google Sheets 書き込み
-    credentials = service_account.Credentials.from_service_account_info(
         service_account_info,
         scopes=["https://www.googleapis.com/auth/spreadsheets"]
     )
     spreadsheet_id = sheet_url.split("/d/")[1].split("/")[0]
     sheet_name = "動画リサーチ結果"
-    from googleapiclient.discovery import build
-    service = build("sheets", "v4", credentials=credentials)
 
     # シート作成（存在しなければ）
     try:
@@ -124,3 +109,4 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
         body={"requests": requests_body}
     ).execute()
 
+from googleapiclient.discovery import build
