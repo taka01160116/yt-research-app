@@ -1,5 +1,14 @@
+import datetime
+import requests
+from io import BytesIO
+from PIL import Image
+import base64
+import pandas as pd
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
 
 def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_account_info):
+    youtube = build("youtube", "v3", developerKey=api_key)
     published_after = (datetime.datetime.utcnow() - datetime.timedelta(days=days)).isoformat("T") + "Z"
     videos = []
 
@@ -33,7 +42,7 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
             # サムネイル取得＆base64エンコード（サイズ変更）
             response = requests.get(thumbnail_url)
             img = Image.open(BytesIO(response.content))
-            img = img.resize((240, 135))  # ←ここを「元のさらに半分」に
+            img = img.resize((240, 135))
             buffer = BytesIO()
             img.save(buffer, format="PNG")
             img_base64 = base64.b64encode(buffer.getvalue()).decode()
@@ -49,10 +58,12 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
 
     df = pd.DataFrame(videos)
 
-    # Google Sheets 書き込み
+    credentials = service_account.Credentials.from_service_account_info(
         service_account_info,
         scopes=["https://www.googleapis.com/auth/spreadsheets"]
     )
+    service = build("sheets", "v4", credentials=credentials)
+
     spreadsheet_id = sheet_url.split("/d/")[1].split("/")[0]
     sheet_name = "動画リサーチ結果"
 
@@ -74,7 +85,7 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
         body={"values": values}
     ).execute()
 
-    # サムネイル用に列幅と行高調整（列幅：430px / 行高：120px）
+    # サムネイル用に列幅と行高調整
     sheet_metadata = service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
     sheet_id = next(s["properties"]["sheetId"] for s in sheet_metadata["sheets"] if s["properties"]["title"] == sheet_name)
 
@@ -99,14 +110,10 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
                     "startIndex": 1,
                     "endIndex": len(df) + 1,
                 },
-                "properties": {"pixelSize": 120},  # ←ここを半分に変更
+                "properties": {"pixelSize": 120},
                 "fields": "pixelSize",
             }
         },
     ]
-    service.spreadsheets().batchUpdate(
-        spreadsheetId=spreadsheet_id,
-        body={"requests": requests_body}
-    ).execute()
+    service.spreadsheets().batchUpdat
 
-from googleapiclient.discovery import build
