@@ -48,7 +48,7 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
                 "投稿日": published_at,
                 "再生回数": view_count,
                 "動画URL": f"https://www.youtube.com/watch?v={video_id}",
-                "サムネイル": f'=IMAGE("{thumbnail_url}", 4, 60, 215)'
+                "サムネイル": f'=IMAGE("{thumbnail_url}", 4, 60, 215)'  # 1/2サイズ
             })
 
     df = pd.DataFrame(videos)
@@ -111,4 +111,7 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
         spreadsheetId=spreadsheet_id,
         body={"requests": requests_body}
     ).execute()
+
+    # ✅ 最後に結果を返す（Streamlit側と連携）
+    return len(df), f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit"
 
