@@ -1,8 +1,5 @@
 import datetime
 import requests
-from io import BytesIO
-from PIL import Image
-import base64
 import pandas as pd
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
@@ -23,11 +20,17 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
         ).execute()
 
         for item in search_response["items"]:
-            video_id = item["id"]["videoId"]
+            video_id = item["id"].get("videoId")
+            if not video_id:
+                continue
+
             video_response = youtube.videos().list(
                 part="snippet,statistics",
                 id=video_id
             ).execute()
+
+            if not video_response["items"]:
+                continue
 
             video = video_response["items"][0]
             view_count = int(video["statistics"].get("viewCount", 0))
@@ -39,21 +42,13 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
             channel_title = video["snippet"]["channelTitle"]
             published_at = video["snippet"]["publishedAt"]
 
-            # サムネイル取得＆base64エンコード（サイズ変更）
-            response = requests.get(thumbnail_url)
-            img = Image.open(BytesIO(response.content))
-            img = img.resize((240, 135))
-            buffer = BytesIO()
-            img.save(buffer, format="PNG")
-            img_base64 = base64.b64encode(buffer.getvalue()).decode()
-
             videos.append({
                 "タイトル": title,
                 "チャンネル名": channel_title,
                 "投稿日": published_at,
                 "再生回数": view_count,
                 "動画URL": f"https://www.youtube.com/watch?v={video_id}",
-                "サムネイル": f'=IMAGE("data:image/png;base64,{img_base64}")'
+                "サムネイル": f'=IMAGE("{thumbnail_url}", 4, 60, 215)'
             })
 
     df = pd.DataFrame(videos)
@@ -67,16 +62,14 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
     spreadsheet_id = sheet_url.split("/d/")[1].split("/")[0]
     sheet_name = "動画リサーチ結果"
 
-    # シート作成（存在しなければ）
     try:
         service.spreadsheets().batchUpdate(
             spreadsheetId=spreadsheet_id,
             body={"requests": [{"addSheet": {"properties": {"title": sheet_name}}}]}
         ).execute()
-    except:
-        pass
+    except Exception as e:
+        print(f"シート作成スキップ（既に存在の可能性）: {e}")
 
-    # 値の書き込み
     values = [df.columns.tolist()] + df.values.tolist()
     service.spreadsheets().values().update(
         spreadsheetId=spreadsheet_id,
@@ -85,7 +78,6 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
         body={"values": values}
     ).execute()
 
-    # サムネイル用に列幅と行高調整
     sheet_metadata = service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
     sheet_id = next(s["properties"]["sheetId"] for s in sheet_metadata["sheets"] if s["properties"]["title"] == sheet_name)
 
@@ -98,7 +90,7 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
                     "startIndex": 5,
                     "endIndex": 6,
                 },
-                "properties": {"pixelSize": 430},
+                "properties": {"pixelSize": 215},
                 "fields": "pixelSize",
             }
         },
@@ -110,10 +102,13 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
                     "startIndex": 1,
                     "endIndex": len(df) + 1,
                 },
-                "properties": {"pixelSize": 120},
+                "properties": {"pixelSize": 60},
                 "fields": "pixelSize",
             }
         },
     ]
-    service.spreadsheets().batchUpdat
+    service.spreadsheets().batchUpdate(
+        spreadsheetId=spreadsheet_id,
+        body={"requests": requests_body}
+    ).execute()
 
