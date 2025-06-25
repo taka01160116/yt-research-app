@@ -85,7 +85,7 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
 
                 subscriber_count_str, subscriber_count_int = channel_cache[channel_id]
 
-                # ✅ 登録者数 × 3 未満の再生回数は除外
+                # ✅ 登録者数 × 3 未満の動画は除外
                 if subscriber_count_int > 0 and view_count < subscriber_count_int * 3:
                     continue
 
@@ -103,6 +103,10 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
             if not next_page_token:
                 break
 
+    # ✅ 0件なら中断
+    if not videos:
+        return 0, "検索結果が0件のため、スプレッドシートは作成されませんでした。"
+
     df = pd.DataFrame(videos, columns=[
         "タイトル",
         "チャンネル名",
@@ -112,9 +116,9 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
         "動画URL",
         "サムネイル"
     ])
-
     df.sort_values("再生回数", ascending=False, inplace=True)
 
+    # ✅ スプレッドシート書き出し
     credentials = service_account.Credentials.from_service_account_info(
         service_account_info,
         scopes=["https://www.googleapis.com/auth/spreadsheets"]
@@ -124,13 +128,10 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
     spreadsheet_id = sheet_url.split("/d/")[1].split("/")[0]
     sheet_name = "動画リサーチ結果_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    try:
-        service.spreadsheets().batchUpdate(
-            spreadsheetId=spreadsheet_id,
-            body={"requests": [{"addSheet": {"properties": {"title": sheet_name}}}]}
-        ).execute()
-    except Exception as e:
-        print(f"シート作成スキップ: {e}")
+    service.spreadsheets().batchUpdate(
+        spreadsheetId=spreadsheet_id,
+        body={"requests": [{"addSheet": {"properties": {"title": sheet_name}}}]}
+    ).execute()
 
     values = [df.columns.tolist()] + df.values.tolist()
     service.spreadsheets().values().update(
