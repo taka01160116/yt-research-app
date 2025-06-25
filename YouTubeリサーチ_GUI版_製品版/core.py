@@ -120,4 +120,3 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
     ).execute()
 
     return len(df), f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit"
-
