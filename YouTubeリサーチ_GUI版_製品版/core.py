@@ -1,4 +1,3 @@
-
 import datetime
 import pandas as pd
 from google.oauth2 import service_account
@@ -66,7 +65,8 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
                         "投稿日": published_at[:10],
                         "URL": video_url,
                         "検索ワード": keyword,
-                        "サムネイル": f'=IMAGE("{thumbnail_url}", 4, 240, 430)'                    })
+                        "サムネイル": f'=IMAGE("{thumbnail_url}", 4, 120, 215)'
+                    })
                 except Exception:
                     continue
 
@@ -116,7 +116,7 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
                     "startIndex": len(df.columns) - 1,
                     "endIndex": len(df.columns),
                 },
-                "properties": {"pixelSize": 430},
+                "properties": {"pixelSize": 215},
                 "fields": "pixelSize",
             }
         },
@@ -128,7 +128,7 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
                     "startIndex": 1,
                     "endIndex": len(df) + 1,
                 },
-                "properties": {"pixelSize": 240},
+                "properties": {"pixelSize": 120},
                 "fields": "pixelSize",
             }
         }
