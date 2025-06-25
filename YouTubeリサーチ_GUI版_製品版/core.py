@@ -37,7 +37,7 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
             if view_count < min_views:
                 continue
 
-            # ✅ サムネイルURLは確実に表示される形式に強制変換
+            # ✅ サムネイルURLを ytimg.com の静的URLに強制
             thumbnail_url = f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
 
             title = video["snippet"]["title"]
@@ -50,7 +50,7 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
                 published_at,
                 view_count,
                 f"https://www.youtube.com/watch?v={video_id}",
-                f'=IMAGE("{thumbnail_url}", 4, 60, 215)'  # サイズ指定付きで確実表示
+                f'=IMAGE("{thumbnail_url}", 4, 60, 215)'
             ])
 
     df = pd.DataFrame(videos, columns=[
@@ -79,11 +79,12 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
     except Exception as e:
         print(f"シート作成スキップ（既に存在の可能性）: {e}")
 
+    # ✅ ここが重要！valueInputOption を USER_ENTERED に
     values = [df.columns.tolist()] + df.values.tolist()
-     service.spreadsheets().values().update(
+    service.spreadsheets().values().update(
         spreadsheetId=spreadsheet_id,
         range=f"{sheet_name}!A1",
-        valueInputOption="USER_ENTERED",
+        valueInputOption="USER_ENTERED",  # ← 関数として処理される
         body={"values": values}
     ).execute()
 
@@ -96,7 +97,7 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
                 "range": {
                     "sheetId": sheet_id,
                     "dimension": "COLUMNS",
-                    "startIndex": 5,  # サムネイル列は6列目（index=5）
+                    "startIndex": 5,  # サムネイル列（F列: index 5）
                     "endIndex": 6,
                 },
                 "properties": {"pixelSize": 215},
