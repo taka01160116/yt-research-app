@@ -15,7 +15,7 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
     youtube = build("youtube", "v3", developerKey=api_key)
     published_after = (datetime.datetime.utcnow() - datetime.timedelta(days=days)).isoformat("T") + "Z"
     videos = []
-    channel_cache = {}  # チャンネル登録者数キャッシュ
+    channel_cache = {}
 
     for keyword in keywords:
         next_page_token = None
@@ -67,7 +67,6 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
                 thumbnail_url = f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
                 channel_id = video["snippet"]["channelId"]
 
-                # 登録者数取得（キャッシュあり）
                 if channel_id not in channel_cache:
                     try:
                         ch_response = youtube.channels().list(
@@ -76,17 +75,24 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
                         ).execute()
                         sub_count = ch_response["items"][0]["statistics"].get("subscriberCount", "非公開")
                         if sub_count != "非公開":
-                            sub_count = f"{int(sub_count):,}"
-                        channel_cache[channel_id] = sub_count
+                            sub_count_int = int(sub_count)
+                            sub_count = f"{sub_count_int:,}"
+                        else:
+                            sub_count_int = 0
+                        channel_cache[channel_id] = (sub_count, sub_count_int)
                     except:
-                        channel_cache[channel_id] = "取得失敗"
+                        channel_cache[channel_id] = ("取得失敗", 0)
 
-                subscriber_count = channel_cache[channel_id]
+                subscriber_count_str, subscriber_count_int = channel_cache[channel_id]
+
+                # ✅ 登録者数 × 3 未満の再生回数は除外
+                if subscriber_count_int > 0 and view_count < subscriber_count_int * 3:
+                    continue
 
                 videos.append([
                     title,
                     channel_title,
-                    subscriber_count,
+                    subscriber_count_str,
                     view_count,
                     published_at,
                     f"https://www.youtube.com/watch?v={video_id}",
@@ -107,10 +113,8 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
         "サムネイル"
     ])
 
-    # ✅ 再生回数が多い順に並び替え
     df.sort_values("再生回数", ascending=False, inplace=True)
 
-    # ✅ Sheets 認証・準備
     credentials = service_account.Credentials.from_service_account_info(
         service_account_info,
         scopes=["https://www.googleapis.com/auth/spreadsheets"]
@@ -136,7 +140,6 @@ def run_youtube_research(api_key, keywords, min_views, days, sheet_url, service_
         body={"values": values}
     ).execute()
 
-    # ✅ サムネイル画像サイズに合わせてセルサイズ調整
     sheet_metadata = service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
     sheet_id = next(s["properties"]["sheetId"] for s in sheet_metadata["sheets"] if s["properties"]["title"] == sheet_name)
 
